@@ -3,7 +3,7 @@ name = "kicad-symbol-tool"
 version = "0.1.0"
 description = "A command-line tool that assists with managing KiCad part libraries"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "openpyxl>=3.1.5",
     "pandas>=2.3.2",
@@ -15,7 +15,25 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=8.4.2",
+    "ruff>=0.12.12",
 ]
 
 [project.scripts]
 kicad-symbol-tool = "kicad_symbol_tool.cli:app"
+
+[tool.ruff]
+line-length = 88          # same default as black
+target-version = "py312"  # your Python version
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ANN"]
+# E,F = pycodestyle/pyflakes basics
+# I   = import sorting
+# UP  = pyupgrade rules
+# B   = bugbear (common mistakes)
+# ANN = missing annotations
+ignore = ["ANN101", "ANN102"] # for example: ignore missing self/cls annotations
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
