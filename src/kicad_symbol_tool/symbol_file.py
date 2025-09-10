@@ -52,7 +52,8 @@ class KiCadSymbolLibrary:
         assert isinstance(self._symbol_sexpr, list), "Failed to parse symbol file"
         assert self._symbol_sexpr[0] == Symbol("kicad_symbol_lib"), "Not a valid KiCad symbol library file"
         assert self.get_kicad_version(self._symbol_sexpr[1:]) >= 20211014, "KiCad symbol library version must be >= 6.0"
-        self._get_symbols()
+        # get all the symbols
+        self._parse_symbols()
             
     
     @staticmethod
@@ -64,35 +65,64 @@ class KiCadSymbolLibrary:
         return 0
     
     @staticmethod
-    def symbol_derived_from(sexp: list) -> Optional[str]:
+    def symbol_derived_from(sexp: list) -> str | None:
         """Check if a symbol is derived from a template and return the template name."""
         for item in sexp:
-            if isinstance(item, list) and len(item) > 0 and item[0] == Symbol("extends"):
+            if isinstance(item, list) and len(item) > 0 and \
+                    item[0] == Symbol("extends"):
                 return item[1]
         return None
 
-    def _get_symbols(self) -> None:
+    def _parse_symbols(self) -> None:
         """Split the symbol file into individual symbols."""
         for item in self._symbol_sexpr[1:]:
             if isinstance(item, list) and len(item) > 0 and item[0] == Symbol("symbol"):
                 symbol_name = str(item[1])
-                derived_table = self.symbol_derived_from(item)
+                derived_from = self.symbol_derived_from(item)
+                is_template = symbol_name.startswith("~")
 
-                assert not derived_table and symbol_name.startswith("~"), f"Symbol {symbol_name} cannot be both a template and derived from another template"
-                if derived_table:
-                    # buzz though the symbol and pull out the properties into a dictionary
-                    properties = {}
-                    for subitem in item[2:]:
-                        if isinstance(subitem, list) and len(subitem) > 0 and subitem[0] == Symbol("property"):
-                            prop_name = str(subitem[1])
-                            prop_value = str(subitem[2])
-                            properties[prop_name] = prop_value
-                # keep all the properties in the symbol but the `Symbol('name')` and the name itself
+                assert not (derived_from and is_template), (
+                    f"Symbol {symbol_name} cannot be both a template "
+                    "and derived from another template"
+                )
+                # Copy all the symbol data to regenerate the symbol file later
                 self._symbols[symbol_name] = item[2:]
+
+    def _extract_properties(self, symbol_sexp: list) -> dict[str, str]:
+        """Extract properties from a symbol's S-expression."""
+        properties = {}
+        for subitem in symbol_sexp:
+            if isinstance(subitem, list) and len(subitem) > 0 and subitem[0] == Symbol("property"):
+                prop_name = str(subitem[1])
+                prop_value = str(subitem[2])
+                properties[prop_name] = prop_value
+        return properties
+
+    def _handle_derived_symbol(self, symbol_name: str, symbol_sexp: list, template_name: str) -> None:
+        """Handle a symbol derived from a template."""
+        properties = self._extract_properties(symbol_sexp[2:])
+        if template_name not in self._derived_symbols:
+            self._derived_symbols[template_name] = []
+        self._derived_symbols[template_name].append({symbol_name: properties})
+        self._symbols[symbol_name] = symbol_sexp[2:]
+
+    def _handle_template_symbol(self, symbol_name: str, symbol_sexp: list) -> None:
+        """Handle a template symbol."""
+        self._templates[symbol_name] = [
+            i for i in symbol_sexp[2:]
+            if isinstance(i, list) and len(i) > 0 and i[0] == Symbol("property")
+        ]
+        self._symbols[symbol_name] = symbol_sexp[2:]
+
+    def _handle_regular_symbol(self, symbol_name: str, symbol_sexp: list) -> None:
+        """Handle a regular (non-derived, non-template) symbol."""
+        self._symbols[symbol_name] = symbol_sexp[2:]
 
 
 def read_symbol_file(file: io.TextIOBase) -> dict[str, dict[str, str]]:
-    """Read a KiCad symbol library file and return a dictionary of symbols property values."""
+    """
+    Read a KiCad symbol library file and return a dictionary of symbols property 
+    values."""
     content = load(file)
     return _parse_symbol_file(content)
 

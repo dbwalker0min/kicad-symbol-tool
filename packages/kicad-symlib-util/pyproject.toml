@@ -1,0 +1,19 @@
+[project]
+name = "kicad-symlib-util"
+version = "0.1.0"
+description = "Utilities for working with KiCad symbol libraries"
+readme = "README.md"
+authors = [
+    { name = "David Walker", email = "dbwalker0min@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "sexpdata>=1.0.2",
+]
+
+[project.scripts]
+kicad-symlib-util = "kicad_symlib_util:main"
+
+[build-system]
+requires = ["uv_build>=0.8.15,<0.9.0"]
+build-backend = "uv_build"

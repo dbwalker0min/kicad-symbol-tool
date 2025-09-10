@@ -1,6 +1,6 @@
 {
   "python.testing.pytestEnabled": true,
-  "python.envFile": "",
+  "python.envFile": "${workspaceFolder}/.env",
   "python.analysis.extraPaths": [
     "./src"
   ], // IntelliSense only; does not modify PATH
@@ -8,5 +8,9 @@
   "python.formatting.provider": "none", // tell VS Code not to use autopep8/black/yapf
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff"
+  },
+  "python.languageServer": "Pylance",
+  "files.associations": {
+    "*.kicad_sym": "lisp"
   }
 }
