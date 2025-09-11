@@ -2,12 +2,6 @@ version = 1
 revision = 3
 requires-python = ">=3.12"
 
-[manifest]
-members = [
-    "kicad-symbol-tool",
-    "kicad-symlib-util",
-]
-
 [[package]]
 name = "click"
 version = "8.2.1"
@@ -145,25 +139,6 @@ dev = [
     { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "ruff", specifier = ">=0.12.12" },
 ]
-
-[[package]]
-name = "kicad-symlib-util"
-version = "0.1.0"
-source = { editable = "packages/kicad-symlib-util" }
-dependencies = [
-    { name = "sexpdata" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest-cov" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "sexpdata", specifier = ">=1.0.2" }]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest-cov", specifier = ">=7.0.0" }]
 
 [[package]]
 name = "markdown-it-py"

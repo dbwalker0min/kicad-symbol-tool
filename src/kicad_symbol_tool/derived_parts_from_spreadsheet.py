@@ -1,7 +1,8 @@
 from pathlib import Path
 
 import pandas as pd
-from kicad_symlib_util import KiCadSymbolLibrary
+
+from kicad_symbol_tool.kicad_symlib_util import KiCadSymbolLibrary
 
 
 def generate_spreadsheet_from_symbol_lib(library_path: Path, output_path: Path) -> None:
@@ -20,6 +21,15 @@ def generate_spreadsheet_from_symbol_lib(library_path: Path, output_path: Path) 
 
     Returns:
         None
+    
+    Raises:
+        FileNotFoundError: If the specified library file does not exist.
+        AssertionError: If the symbol file cannot be parsed, is not a valid KiCad symbol library.
+        KiCadVersionError: If the KiCad version is unsupported.
+        KeyError: If a requested symbol or template does not exist.
+        ValueError: If attempting to create a symbol with a duplicate name or invalid section/mode.
+        sexpdata.ExpectClosingBracket, sexpdata.ExpectNothing, sexpdata.ExpectSExp: There was an error
+            parsing the symbol file (an s-expression parsing error).
     """
     lib = KiCadSymbolLibrary(library_path)
 

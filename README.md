@@ -21,7 +21,7 @@ It then performs the following:
 
 - If the library doesn't exist, it throws an exception.
 - If the library format is before 6.0, it throws an exception.
-- If the file `<root name of .kicad_sym file>.xlsx` does not exist, it will be created.
+- If the file `<root name of .kicad_sym file>.xlsx` does not exist, it will be created, and the utility will exit.
 - If it does exist, then if the `xlsx` file is newer than the `kicad_sym` file, the changes in the `xlsx` file will be applied to the symbol's properties.
 
 ## Template Parts

@@ -2,7 +2,7 @@ import tomllib
 from copy import deepcopy
 from pathlib import Path
 
-from sexpdata import Symbol, dumps, load  # type: ignore
+from sexpdata import Symbol, dumps, load
 
 """
 File: symbol_file_class.py
@@ -54,18 +54,17 @@ def _get_project_version(pyproject_path: Path) -> str:
     with open(pyproject_path, "rb") as f:
         data = tomllib.load(f)
     # Astral uv projects use [project] table for version
-    print(data["project"]["version"])
     return data["project"]["version"]
 
 
 # Access the project version from the pyproject.toml file
-_project_version = _get_project_version(Path(__file__).parent.parent.parent / "pyproject.toml")
+_project_version = _get_project_version(Path(__file__).parent.parent.parent.parent / "pyproject.toml")
 
 
 class KiCadSymbolLibrary:
     """
     KiCadSymbolLibrary(symbol_file: Path, sexp: list | None = None)
-    Represents a KiCad symbol library file, providing methods to read, parse, manipulate, and write 
+    Represents a KiCad symbol library file, providing methods to read, parse, manipulate, and write
     the symbol definitions in the KiCad S-expression format.
 
     This class allows you to:
@@ -97,11 +96,6 @@ class KiCadSymbolLibrary:
         derive_symbol_from(new_symbol_name: str, template_symbol_name: str, properties: dict[str, str]) -> None:
             Creates a new symbol derived from a template symbol with specified properties.
         write_library(output_path: Path | None = None) -> None:
-
-        AssertionError: If the symbol file cannot be parsed, is not a valid KiCad symbol library.
-        KeyError: If a requested symbol or template does not exist.
-        ValueError: If attempting to create a symbol with a duplicate name or invalid section/mode.
-        KiCadVersionError: If the KiCad version is unsupported.
     """
 
     # the header for a kicad symbol utility file
@@ -123,6 +117,13 @@ class KiCadSymbolLibrary:
         Raises:
             AssertionError: If the symbol file cannot be parsed, is not a valid KiCad symbol library.
             KiCadVersionError: If the KiCad version is unsupported.
+                    AssertionError: If the symbol file cannot be parsed, is not a valid KiCad symbol library.
+            KeyError: If a requested symbol or template does not exist.
+            ValueError: If attempting to create a symbol with a duplicate name or invalid section/mode.
+            KiCadVersionError: If the KiCad version is unsupported.
+            sexpdata.ExpectClosingBracket, sexpdata.ExpectNothing, sexpdata.ExpectSExp: There was an error
+                parsing the symbol file (an s-expression parsing error).
+
 
         Side Effects:
             - Loads and stores the S-expression content of the symbol file.
@@ -190,10 +191,10 @@ class KiCadSymbolLibrary:
     def get_symbol_properties(self, symbol_name: str) -> dict[str, str] | None:
         """
         Retrieve the properties of a specified symbol as a dictionary.
-        
+
         Args:
             symbol_name (str): The name of the symbol to retrieve properties for.
-        
+
         Returns:
             dict[str, str] | None: A dictionary containing property names and their corresponding values
             if the symbol exists, otherwise None.
@@ -251,7 +252,7 @@ class KiCadSymbolLibrary:
     def modify_properties(self, symbol_name: str, new_properties: dict[str, str]) -> None:
         """
         Updates the properties of a specified symbol by replacing existing template properties with new values.
-        If the property does not exist in the symbol, it is created. 
+        If the property does not exist in the symbol, it is created.
 
         Args:
             symbol_name (str): The name of the symbol whose properties are to be modified.
@@ -266,7 +267,7 @@ class KiCadSymbolLibrary:
             symbol_sexp = self._symbols[symbol_name]
         except KeyError as e:
             raise KeyError(f"Symbol {symbol_name} not found in library.") from e
-        
+
         # copy it because I will be modifying it
         new_properties_copy = new_properties.copy()
 
@@ -285,15 +286,15 @@ class KiCadSymbolLibrary:
 
                     # keep track of which properties remain to be added
                     del new_properties_copy[property_name]
-        
+
         assert default_position_and_text_effects, "Failed to find Description property to copy position and text effects from."
-        
+
         # Add any new properties that were not found in the existing properties
         for prop_name, prop_value in new_properties_copy.items():
             # Create a new property entry using the default position and text effects
             new_property = [Symbol("property"), prop_name, prop_value] + default_position_and_text_effects
             symbol_sexp.append(new_property)
-        
+
         # write the modified symbol back to the library
         self._symbols[symbol_name] = symbol_sexp
 
@@ -361,7 +362,7 @@ class KiCadSymbolLibrary:
 
         # Update properties
         self.modify_properties(new_symbol_name, properties)
-    
+
     def get_symbol_names(self) -> list[str]:
         """
         Returns a list of all symbol names in the library.
@@ -370,7 +371,7 @@ class KiCadSymbolLibrary:
             list[str]: A list of symbol names.
         """
         return list(self._symbols.keys())
-    
+
     def write_library(self, output_path: Path | None = None) -> None:
         """
         Writes the current symbol library to the specified file path.
