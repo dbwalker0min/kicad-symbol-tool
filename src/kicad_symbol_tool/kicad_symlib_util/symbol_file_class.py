@@ -51,10 +51,40 @@ class KiCadVersionError(Exception):
 
 
 def _get_project_version(pyproject_path: Path) -> str:
-    with open(pyproject_path, "rb") as f:
-        data = tomllib.load(f)
-    # Astral uv projects use [project] table for version
-    return data["project"]["version"]
+    """Return the project version.
+
+    Prefer the installed distribution metadata (importlib.metadata). If the
+    distribution isn't installed (for example during development), fall back to
+    reading a local pyproject.toml if present. If neither is available return
+    a safe default.
+    """
+    # First, try to get the installed package version (works when installed
+    # from PyPI or in editable mode with proper metadata).
+    try:
+        import importlib.metadata as _metadata
+
+        try:
+            return _metadata.version("kicad-symbol-tool")
+        except _metadata.PackageNotFoundError:
+            # Not installed as a distribution in this environment; fall through
+            pass
+    except Exception:
+        # importlib.metadata might not be available for some reason; fall back
+        # to reading pyproject.toml below.
+        pass
+
+    # Fallback: read pyproject.toml if it's available alongside the source.
+    try:
+        if pyproject_path.exists():
+            with open(pyproject_path, "rb") as f:
+                data = tomllib.load(f)
+            return data.get("project", {}).get("version", "0.0.0")
+    except Exception:
+        # Any parsing/IO errors -> return default version
+        pass
+
+    # Last resort
+    return "0.0.0"
 
 
 # Access the project version from the pyproject.toml file
