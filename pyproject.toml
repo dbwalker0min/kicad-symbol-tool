@@ -1,6 +1,6 @@
 [project]
 name = "kicad-symbol-tool"
-version = "0.1.0"
+version = "0.1.1"
 description = "A command-line tool that assists with managing KiCad part libraries"
 readme = "README.md"
 requires-python = ">=3.12"
