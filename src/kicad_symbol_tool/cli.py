@@ -28,6 +28,11 @@ def _process_lib_file(lib_file: Path, force: bool) -> None:
         except (ValueError, AssertionError, KiCadVersionError, KeyError, ExpectClosingBracket, ExpectNothing, ExpectSExp) as e:
             sys.exit(f"Error: {e}", code=1)
 
+        # if there were no derived parts, the xlsx file won't be created
+        if not xlsx_file.exists():
+            print(f"No derived parts found in {lib_file}. No spreadsheet created.")
+            return
+        
         # set the time of the xlsx file to be the same as the lib file so it doesn't try to update it next time
         lib_mtime_ns = os.stat(lib_file).st_mtime_ns
         os.utime(xlsx_file, ns=(lib_mtime_ns, lib_mtime_ns))

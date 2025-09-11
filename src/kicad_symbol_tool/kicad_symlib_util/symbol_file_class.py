@@ -2,7 +2,7 @@ import tomllib
 from copy import deepcopy
 from pathlib import Path
 
-from sexpdata import Symbol, dumps, load
+from sexpdata import Symbol, dumps, loads
 
 """
 File: symbol_file_class.py
@@ -166,7 +166,8 @@ class KiCadSymbolLibrary:
             self._symbol_sexpr = sexp
         else:
             with open(symbol_file, encoding="utf-8") as f:
-                self._symbol_sexpr = load(f)
+                data = f.read()
+                self._symbol_sexpr = loads(data)
 
         # this is for the S-expression content for each symbol which is a template or a non-derived symbol
         self._symbols: dict[str, list] = {}

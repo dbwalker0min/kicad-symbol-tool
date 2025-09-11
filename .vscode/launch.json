@@ -1,0 +1,24 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://code.visualstudio.com/docs/python/debugging
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Debug kicad-symbol-tool (module)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "kicad_symbol_tool.cli",
+            // Set the working directory for the program here. Change this value to the
+            // path you want the CLI to operate on (example uses the test/data folder).
+            "cwd": "C:\\Users\\dbwal\\VSCode\\KiCAD\\electronics-library\\symbols",
+            // Arguments passed to the program. Using '.' makes the CLI operate on the
+            // configured working directory (see `cwd` above).
+            "args": [
+                "."
+            ],
+            "justMyCode": false,
+            "console": "integratedTerminal"
+        }
+    ]
+}
