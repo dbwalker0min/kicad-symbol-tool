@@ -1,9 +1,10 @@
 import io
-from typing import Any, Optional
-from sexpdata import load, Symbol, dumps  # type: ignore
-import pandas as pd
-from pathlib import Path
 import tomllib
+from pathlib import Path
+from typing import Any, Optional
+
+import pandas as pd
+from sexpdata import Symbol, dumps, load  # type: ignore
 
 
 class KiCadVersionError(Exception):
@@ -119,106 +120,3 @@ class KiCadSymbolLibrary:
         self._symbols[symbol_name] = symbol_sexp[2:]
 
 
-def read_symbol_file(file: io.TextIOBase) -> dict[str, dict[str, str]]:
-    """
-    Read a KiCad symbol library file and return a dictionary of symbols property 
-    values."""
-    content = load(file)
-    return _parse_symbol_file(content)
-
-
-def _parse_symbol_file(content: list) -> dict[str, dict[str, str]]:
-    """Recursively parse the S-expression content of a KiCad symbol library."""
-    # Find version
-    version = None
-    for item in content:
-        if isinstance(item, list) and len(item) > 0 and item[0] == Symbol("version"):
-            version = float(item[1])
-            break
-    if version is None or version < 6.0:
-        raise KiCadVersionError("KiCad symbol library version must be >= 6.0")
-
-    symbols = {}
-    for item in content:
-        if isinstance(item, list) and len(item) > 0 and item[0] == Symbol("symbol"):
-            symbol_name = str(item[1])
-            properties = {}
-            extends_symbol = None
-            for subitem in item:
-                if isinstance(subitem, list) and len(subitem) > 0:
-                    if subitem[0] == Symbol("property"):
-                        prop_name = str(subitem[1])
-                        prop_value = str(subitem[2])
-                        properties[prop_name] = prop_value
-                    elif subitem[0] == Symbol("extends"):
-                        extends_symbol = str(subitem[1])
-            symbol_dict = properties.copy()
-            # Always include new_name for renaming
-            symbol_dict["new_name"] = symbol_name
-            if extends_symbol is not None:
-                symbol_dict["extends"] = extends_symbol
-            symbols[symbol_name] = symbol_dict
-    return symbols
-
-
-def write_symbols_to_xlsx(symbols: dict[str, dict[str, str]], filename: str):
-    """Write symbols to an xlsx file, each template on its own sheet."""
-    templates = [name for name in symbols if name.startswith("~")]
-    with pd.ExcelWriter(filename) as writer:
-        for template in templates:
-            template_props = [k for k in symbols[template]
-                              if k not in ("extends", "new_name")]
-            # Find symbols that extend this template
-            derived = []
-            for name, props in symbols.items():
-                if props.get("extends") == template:
-                    row = {"Symbol": name}
-                    for prop in template_props:
-                        row[prop] = props.get(prop, "")
-                    row["new_name"] = props.get("new_name", name)
-                    derived.append(row)
-            if derived:
-                df = pd.DataFrame(derived, columns=[
-                                  "Symbol"] + ["new_name"] + template_props)
-                df.to_excel(writer, sheet_name=template, index=False)
-
-
-def update_sexp_with_symbols(content: list, updated_symbols: dict[str, dict[str, str]]) -> list:
-    """Traverse the S-expression and update symbol properties and names."""
-    for item in content:
-        if isinstance(item, list) and len(item) > 0 and item[0] == Symbol("symbol"):
-            symbol_name = str(item[1])
-            if symbol_name in updated_symbols:
-                props = updated_symbols[symbol_name]
-                # Update properties in-place
-                for subitem in item:
-                    if isinstance(subitem, list) and len(subitem) > 0 and subitem[0] == Symbol("property"):
-                        prop_name = str(subitem[1])
-                        if prop_name in props:
-                            subitem[2] = props[prop_name]
-                # Rename symbol if 'new_name' is present and different
-                if "new_name" in props and props["new_name"] != symbol_name:
-                    item[1] = props["new_name"]
-    return content
-
-
-def write_symbol_dict_to_sexp(symbols: dict[str, dict[str, str]], output_filename: str, original_sexp: list) -> None:
-    """Update the original S-expression with new symbol properties and write to file."""
-    updated_sexp = update_sexp_with_symbols(original_sexp, symbols)
-    with open(output_filename, "w", encoding="utf-8") as f:
-        f.write(dumps(updated_sexp))
-
-
-def read_xlsx_and_apply_to_sexp(xlsx_filename: str, original_symbols: dict[str, dict[str, str]], original_sexp: list, output_filename: str):
-    """Read the xlsx file, apply changes to the parsed sexp, and write to a new symbol table."""
-    xls = pd.ExcelFile(xlsx_filename)
-    updated_symbols = original_symbols.copy()
-    for sheet_name in xls.sheet_names:
-        df = pd.read_excel(xls, sheet_name=sheet_name)
-        for _, row in df.iterrows():
-            symbol_name = row["Symbol"]
-            if symbol_name in updated_symbols:
-                for prop in row.index:
-                    if prop != "Symbol" and pd.notnull(row[prop]):
-                        updated_symbols[symbol_name][prop] = str(row[prop])
-    write_symbol_dict_to_sexp(updated_symbols, output_filename, original_sexp)

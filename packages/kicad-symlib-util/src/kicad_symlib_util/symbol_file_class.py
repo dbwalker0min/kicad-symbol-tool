@@ -65,7 +65,9 @@ _project_version = _get_project_version(Path(__file__).parent.parent.parent / "p
 class KiCadSymbolLibrary:
     """
     KiCadSymbolLibrary(symbol_file: Path, sexp: list | None = None)
-    Represents a KiCad symbol library file, providing methods to read, parse, manipulate, and write symbol definitions in the KiCad S-expression format.
+    Represents a KiCad symbol library file, providing methods to read, parse, manipulate, and write 
+    the symbol definitions in the KiCad S-expression format.
+
     This class allows you to:
     - Load and parse a KiCad symbol library file or a pre-parsed S-expression.
     - Access and modify symbol properties.
@@ -102,7 +104,7 @@ class KiCadSymbolLibrary:
         KiCadVersionError: If the KiCad version is unsupported.
     """
 
-    # the header for a kicad symbol file
+    # the header for a kicad symbol utility file
     _symbol_file_header = [
         Symbol("kicad_symbol_lib"),
         [Symbol("version"), 20241209],
@@ -132,7 +134,7 @@ class KiCadSymbolLibrary:
         if sexp:
             self._symbol_sexpr = sexp
         else:
-            with open(symbol_file, "r", encoding="utf-8") as f:
+            with open(symbol_file, encoding="utf-8") as f:
                 self._symbol_sexpr = load(f)
 
         # this is for the S-expression content for each symbol which is a template or a non-derived symbol
@@ -167,7 +169,7 @@ class KiCadSymbolLibrary:
             if isinstance(item, list) and len(item) > 0 and item[0] == Symbol("version"):
                 self._kicad_version = int(item[1])
                 return int(item[1])
-        # this is an invalid version
+        # The version was not found. Return 0 (a guaranteed bad version)
         return 0
 
     def symbol_derived_from(self, symbol_name: str) -> str | None:
@@ -248,9 +250,8 @@ class KiCadSymbolLibrary:
 
     def modify_properties(self, symbol_name: str, new_properties: dict[str, str]) -> None:
         """
-        Updates the properties of a specified symbol by replacing existing properties with new values.
-        Only properties that already exist in the symbol will be updated; properties in `new_properties` 
-        that do not exist in the symbol are ignored.
+        Updates the properties of a specified symbol by replacing existing template properties with new values.
+        If the property does not exist in the symbol, it is created. 
 
         Args:
             symbol_name (str): The name of the symbol whose properties are to be modified.
@@ -261,16 +262,40 @@ class KiCadSymbolLibrary:
         """
 
         try:
-            # Find the properties section
-            for item in self._symbols[symbol_name]:
-                if isinstance(item, list) and len(item) > 0 and item[0] == Symbol("property"):
-                    # Remove existing property with the same name
-                    property_name = str(item[1])
-                    if property_name in new_properties:
-                        # replace the properties value. Because lists are mutable, this modifies the symbol in place
-                        item[2] = new_properties[property_name]
+            # note that this is a reference to the symbol in the library, so modifying it modifies the library
+            symbol_sexp = self._symbols[symbol_name]
         except KeyError as e:
             raise KeyError(f"Symbol {symbol_name} not found in library.") from e
+        
+        # copy it because I will be modifying it
+        new_properties_copy = new_properties.copy()
+
+        # Find the properties section
+        default_position_and_text_effects = None
+        for item in symbol_sexp:
+            if isinstance(item, list) and len(item) > 0 and item[0] == Symbol("property"):
+                # Update existing property with the same name
+                property_name = str(item[1])
+                if property_name == "Description":
+                    # pull the addition property information (id, postion, text effects) for adding properties later
+                    default_position_and_text_effects = item[3:]
+                if property_name in new_properties_copy:
+                    # replace the properties value. Because lists are mutable, this modifies the symbol in place
+                    item[2] = new_properties_copy[property_name]
+
+                    # keep track of which properties remain to be added
+                    del new_properties_copy[property_name]
+        
+        assert default_position_and_text_effects, "Failed to find Description property to copy position and text effects from."
+        
+        # Add any new properties that were not found in the existing properties
+        for prop_name, prop_value in new_properties_copy.items():
+            # Create a new property entry using the default position and text effects
+            new_property = [Symbol("property"), prop_name, prop_value] + default_position_and_text_effects
+            symbol_sexp.append(new_property)
+        
+        # write the modified symbol back to the library
+        self._symbols[symbol_name] = symbol_sexp
 
     def modify_symbol_sections(self, symbol_sexp: list, sections: list[str], mode: str) -> list:
         """
@@ -317,10 +342,10 @@ class KiCadSymbolLibrary:
             AssertionError: If the template symbol is itself derived from another symbol.
         """
         if new_symbol_name in self._symbols:
-            raise ValueError(f"Symbol {new_symbol_name} already exists in library.")
+            raise KeyError(f"Symbol {new_symbol_name} already exists in library.")
         if template_symbol_name not in self._symbols:
             raise KeyError(f"Template symbol {template_symbol_name} not found in library.")
-        assert self.symbol_derived_from(template_symbol_name) is None, "Template symbol cannot be derived from another symbol."
+        assert self.symbol_derived_from(template_symbol_name) is None, "Template symbol cannot be derived from another derived symbol."
 
         # Start with a deep copy of the template symbol's S-expression
         new_symbol_sexp = self.get_symbol(template_symbol_name)
@@ -331,17 +356,21 @@ class KiCadSymbolLibrary:
         # I need to add the `extends` section to indicate the template
         new_symbol_sexp.insert(0, [Symbol("extends"), template_symbol_name])
 
-        # Update properties
-        for item in new_symbol_sexp[1:]:
-            if isinstance(item, list) and len(item) > 0 and item[0] == Symbol("property"):
-                prop_name = str(item[1])
-                new_prop_value = properties.get(prop_name)
-                if prop_name in properties and new_prop_value:
-                    item[2] = Symbol(new_prop_value)
-
-        # Finally, add the new symbol to the library
+        # place the symbol in the library
         self._symbols[new_symbol_name] = new_symbol_sexp
 
+        # Update properties
+        self.modify_properties(new_symbol_name, properties)
+    
+    def get_symbol_names(self) -> list[str]:
+        """
+        Returns a list of all symbol names in the library.
+
+        Returns:
+            list[str]: A list of symbol names.
+        """
+        return list(self._symbols.keys())
+    
     def write_library(self, output_path: Path | None = None) -> None:
         """
         Writes the current symbol library to the specified file path.
@@ -352,7 +381,7 @@ class KiCadSymbolLibrary:
         # Compose the full S-expression for the library
         sexp = deepcopy(self._symbol_file_header)
         for symbol_name, symbol_sexp in self._symbols.items():
-            sexp.append([Symbol("symbol"), Symbol(symbol_name)] + deepcopy(symbol_sexp))
+            sexp.append([Symbol("symbol"), symbol_name] + deepcopy(symbol_sexp))
 
         # Write to the specified file or overwrite the original file if not specified
         if output_path is None:

@@ -3,6 +3,7 @@ from pprint import pprint
 
 import pytest
 from kicad_symlib_util.symbol_file_class import KiCadSymbolLibrary
+from sexpdata import ExpectClosingBracket, Symbol
 
 test_data_dir = Path(__file__).parent / "data"
 
@@ -58,7 +59,21 @@ def test_basic_symbol_file() -> None:
     assert props['ki_keywords'] == "r resistor extended", "New symbol 200k should have correct ki_keywords property"
     assert sf.symbol_derived_from("200k") == "~Template", "200k should be derived from ~Template"
     sf.write_library(test_data_dir / "modified.kicad_sym")
-
+    with pytest.raises(KeyError, match="Symbol NonExistent not found in library."):
+        sf.delete_symbol("NonExistent")
+    with pytest.raises(KeyError):
+        sf.modify_properties("NonExistent", {})
+    with pytest.raises(ValueError, match="Mode must be 'remove' or 'keep'."):
+        sf.modify_symbol_sections([Symbol("symbol")], ["junk"], mode="error")
+    with pytest.raises(ValueError, match="Sections must be one of .*"):
+        sf.modify_symbol_sections([Symbol("symbol")], ["junk"], mode="keep")
+    with pytest.raises(KeyError, match="Symbol 1.5k already exists in library"):
+        # this already exist
+        sf.derive_symbol_from("1.5k", "~Template", new_part_properties)
+    with pytest.raises(KeyError, match="Template symbol ~asdf not found in library"):
+        sf.derive_symbol_from("asdf", "~asdf", new_part_properties)
+    with pytest.raises(AssertionError, match="Template symbol cannot be derived from another derived symbol"):
+        sf.derive_symbol_from("asdf", "1.5k", new_part_properties)
 
 def test_bad_kicad_version() -> None:
     """Test handling of unsupported KiCad version."""
@@ -66,3 +81,15 @@ def test_bad_kicad_version() -> None:
     test_sexp[1][1] = 234  # Unsupported version
     with pytest.raises(AssertionError):
         KiCadSymbolLibrary(None, sexp=test_sexp)
+
+def test_invalid_file_bad_first_token() -> None:
+    """Test handling of invalid file."""
+    invalid_file = test_data_dir / "Invalid.kicad_sym"
+    with pytest.raises(AssertionError):
+        KiCadSymbolLibrary(invalid_file)
+
+def test_invalid_file_bad_sexpr() -> None:
+    """Test handling of invalid file with a malformed sexpr."""
+    invalid_file = test_data_dir / "InvalidSexpr.kicad_sym"
+    with pytest.raises(ExpectClosingBracket, match="Not enough closing brackets\. .*"):
+        KiCadSymbolLibrary(invalid_file)
