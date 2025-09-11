@@ -24,9 +24,9 @@ def _process_lib_file(lib_file: Path, force: bool) -> None:
         try:
             generate_spreadsheet_from_symbol_lib(lib_file, xlsx_file)
         except FileNotFoundError as e:
-            sys.exit(f'File not found: {e}', code=1)
+            sys.exit(f"File not found: {e}", code=1)
         except (ValueError, AssertionError, KiCadVersionError, KeyError, ExpectClosingBracket, ExpectNothing, ExpectSExp) as e:
-            sys.exit(f'Error: {e}', code=1)
+            sys.exit(f"Error: {e}", code=1)
 
         # set the time of the xlsx file to be the same as the lib file so it doesn't try to update it next time
         lib_mtime_ns = os.stat(lib_file).st_mtime_ns
@@ -45,12 +45,12 @@ def _process_lib_file(lib_file: Path, force: bool) -> None:
             shutil.copy2(lib_file, backup_file)
             print(f"Backup created: {backup_file}")
         except Exception as e:
-            sys.exit(f'Failed to create backup: {e}', code=1)
+            sys.exit(f"Failed to create backup: {e}", code=1)
 
         try:
             generate_derived_parts_from_spreadsheet(lib_file, xlsx_file)
         except (ValueError, AssertionError, KiCadVersionError, KeyError, ExpectClosingBracket, ExpectNothing, ExpectSExp) as e:
-            sys.exit(f'Error: {e}', code=1)
+            sys.exit(f"Error: {e}", code=1)
     else:
         print(f"No changes to apply for {lib_file}.")
 
