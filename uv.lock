@@ -107,7 +107,7 @@ wheels = [
 
 [[package]]
 name = "kicad-symbol-tool"
-version = "0.1.4"
+version = "1.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "kicad-symlib-utility" },
