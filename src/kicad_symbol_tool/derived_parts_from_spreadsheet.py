@@ -36,8 +36,8 @@ def generate_spreadsheet_from_symbol_lib(library_path: Path, output_path: Path) 
     # this is a dictionary with keys of all derived symbols in the library derived from a template and a value of the template they are derived from
     derived_symbols = {s: t for s in lib.get_symbol_names() if (t := lib.symbol_derived_from(s)) and t.startswith("~")}
 
-    # I want a spreadsheet sheet with a list of all parameter values from derived symbols
-    templates = set(derived_symbols.values())
+    # I want a spreadsheet sheet with a list of all symbols derived from each template. Note that there may be no symbols derived from a particular template.
+    templates = [t for t in lib.get_symbol_names() if t.startswith("~")]
 
     for t in templates:
         # this is a list of all symbols derived from template t
@@ -48,7 +48,12 @@ def generate_spreadsheet_from_symbol_lib(library_path: Path, output_path: Path) 
             # Ensure "Symbol Name" is the first column
             props = {"Symbol Name": s, **props}
             symbols_data.append(props)
-        df = pd.DataFrame(symbols_data)
+        
+        if not symbols_data:
+            # No symbols derived from this template. Create a sheet with the header only.
+            df = pd.DataFrame(columns=["Symbol Name", "Value", "Description", "Footprint", "Datasheet", "Reference", "ki_keywords", "ki_fp_filters"])
+        else:
+            df = pd.DataFrame(symbols_data)
 
         # Remove the sheet if it already exists to avoid ValueError
         if output_path.exists():
