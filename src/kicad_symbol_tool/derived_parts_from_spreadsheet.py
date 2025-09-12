@@ -1,8 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
-
-from kicad_symbol_tool.kicad_symlib_util import KiCadSymbolLibrary
+from kicad_symlib_utility import KiCadSymbolLibrary
 
 
 def generate_spreadsheet_from_symbol_lib(library_path: Path, output_path: Path) -> None:
@@ -21,7 +20,7 @@ def generate_spreadsheet_from_symbol_lib(library_path: Path, output_path: Path) 
 
     Returns:
         None
-    
+
     Raises:
         FileNotFoundError: If the specified library file does not exist.
         AssertionError: If the symbol file cannot be parsed, is not a valid KiCad symbol library.
@@ -33,11 +32,14 @@ def generate_spreadsheet_from_symbol_lib(library_path: Path, output_path: Path) 
     """
     lib = KiCadSymbolLibrary(library_path)
 
-    # this is a dictionary with keys of all derived symbols in the library derived from a template and a value of the template they are derived from
-    derived_symbols = {s: t for s in lib.get_symbol_names() if (t := lib.symbol_derived_from(s)) and t.startswith("~")}
+    symbol_names = lib.get_symbol_names()
 
-    # I want a spreadsheet sheet with a list of all symbols derived from each template. Note that there may be no symbols derived from a particular template.
-    templates = [t for t in lib.get_symbol_names() if t.startswith("~")]
+    # this is a dictionary with keys of all derived symbols in the library derived from a template and a value of the template they are derived from
+    derived_symbols = {s: t for s in symbol_names if (t := lib.symbol_derived_from(s)) and t.startswith("~")}
+
+    # I want a spreadsheet sheet with a list of all symbols derived from each template. 
+    # Note that there may be no symbols derived from a particular template.
+    templates = [t for t in symbol_names if t.startswith("~")]
 
     for t in templates:
         # this is a list of all symbols derived from template t
@@ -48,21 +50,23 @@ def generate_spreadsheet_from_symbol_lib(library_path: Path, output_path: Path) 
             # Ensure "Symbol Name" is the first column
             props = {"Symbol Name": s, **props}
             symbols_data.append(props)
-        
+
         if not symbols_data:
-            # No symbols derived from this template. Create a sheet with the header only.
-            df = pd.DataFrame(columns=["Symbol Name", "Value", "Description", "Footprint", "Datasheet", "Reference", "ki_keywords", "ki_fp_filters"])
+            # No symbols derived from this template. Create a sheet with the header only. Inherit the columns from the template properties
+
+            columns = ["Symbol Name"] + list(lib.get_symbol_properties(t).keys())
+            df = pd.DataFrame(columns=columns)
         else:
             df = pd.DataFrame(symbols_data)
 
         # Remove the sheet if it already exists to avoid ValueError
         if output_path.exists():
-            with pd.ExcelWriter(output_path, engine='openpyxl', mode='a') as writer:
+            with pd.ExcelWriter(output_path, engine="openpyxl", mode="a") as writer:
                 if t in writer.book.sheetnames:
                     del writer.book[t]
                 df.to_excel(writer, sheet_name=t, index=False)
         else:
-            with pd.ExcelWriter(output_path, engine='openpyxl', mode='w') as writer:
+            with pd.ExcelWriter(output_path, engine="openpyxl", mode="w") as writer:
                 df.to_excel(writer, sheet_name=t, index=False)
 
 
@@ -120,4 +124,3 @@ def generate_derived_parts_from_spreadsheet(lib_path_in: Path, spreadsheet_path:
 
     # Write back the updated library
     lib.write_library(lib_path_out)
-
