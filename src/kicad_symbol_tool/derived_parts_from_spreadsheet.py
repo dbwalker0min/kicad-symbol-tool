@@ -69,6 +69,71 @@ def generate_spreadsheet_from_symbol_lib(library_path: Path, output_path: Path) 
             with pd.ExcelWriter(output_path, engine="openpyxl", mode="w") as writer:
                 df.to_excel(writer, sheet_name=t, index=False)
 
+def update_spreadsheet_from_symbol_lib(library_path: Path, spreadsheet_path: Path) -> None:
+    """
+    Updates an existing Excel spreadsheet with data from a KiCad symbol library.
+    For each template symbol (identified by names starting with '~'), this function updates the corresponding
+    sheet in the Excel file with a list of all symbols derived from that template, including their parameter values.
+    The first column in each sheet is always "Symbol Name".
+
+    If the specified sheet does not exist in the Excel file, it will be created. Existing sheets will be overwritten.
+
+    Args:
+        library_path (Path): Path to the KiCad symbol library file.
+        spreadsheet_path (Path): Path to the existing Excel spreadsheet file.
+
+    Returns:
+        None
+
+    Raises:
+        FileNotFoundError: If the specified library or spreadsheet file does not exist.
+        AssertionError: If the symbol file cannot be parsed, is not a valid KiCad symbol library.
+        KiCadVersionError: If the KiCad version is unsupported.
+        KeyError: If a requested symbol or template does not exist.
+        ValueError: If attempting to create a symbol with a duplicate name or invalid section/mode.
+        sexpdata.ExpectClosingBracket, sexpdata.ExpectNothing, sexpdata.ExpectSExp: There was an error
+            parsing the symbol file (an s-expression parsing error).
+    """
+    lib = KiCadSymbolLibrary(library_path)
+
+    symbol_names = lib.get_symbol_names()
+
+    # I want a spreadsheet sheet with a list of all symbols derived from each template. 
+    # Note that there may be no symbols derived from a particular template.
+    templates = [t for t in symbol_names if t.startswith("~")]
+
+    # Read the existing Excel file
+    # I assume it exists
+    with pd.ExcelFile(spreadsheet_path) as xls:
+
+        for t in templates:
+            # this is a list of all symbols derived from template t
+            # note that the sheet may not exist in the spreadsheet
+            template_data = pd.read_excel(xls, sheet_name=t) if t in xls.sheet_names else pd.DataFrame()
+
+            # Ensure all columns from the spreadsheet are included, even if template_data is empty
+            # Use a list to preserve order
+            all_columns = template_data.columns if not template_data.empty else list()
+
+            if not all_columns:
+                # If the sheet is empty, inherit columns from the template properties
+                all_columns = list(lib.get_symbol_properties(t).keys())
+                new_template_data = pd.DataFrame(columns=["Symbol Name"] + list(all_columns))
+            else:
+                # Collect the library data for corresponding columns in the spreadsheet
+                # I'll regenerate the dataframe from the library data to ensure consistency
+                new_template_data = pd.DataFrame(columns=all_columns)
+                for s in [sym for sym in lib.get_symbol_names() if lib.symbol_derived_from(sym) == t]:
+                    props = lib.get_symbol_properties(s) or {}
+                    new_row = {"Symbol Name": s} | {col: props.get(col, "") for col in all_columns}
+                    new_template_data = pd.concat([new_template_data, pd.DataFrame([new_row])], ignore_index=True)
+
+            # New template data is ready to be written
+            with pd.ExcelWriter(spreadsheet_path, engine="openpyxl", mode="a") as writer:
+                if t in writer.book.sheetnames:
+                    del writer.book[t]
+                new_template_data.to_excel(writer, sheet_name=t, index=False)
+
 
 def generate_derived_parts_from_spreadsheet(lib_path_in: Path, spreadsheet_path: Path, lib_path_out: Path | None = None) -> None:
     """
@@ -100,6 +165,10 @@ def generate_derived_parts_from_spreadsheet(lib_path_in: Path, spreadsheet_path:
         if not sheet_name.startswith("~"):
             continue
 
+        # delete all symbols associated with this template
+        for sym in [s for s in lib.get_symbol_names() if lib.symbol_derived_from(s) == sheet_name]:
+            lib.delete_symbol(sym)
+
         df = pd.read_excel(xls, sheet_name=sheet_name).astype(str)
         assert "Symbol Name" in df.columns, f"Sheet '{sheet_name}' must have a 'Symbol Name' column."
 
@@ -109,10 +178,6 @@ def generate_derived_parts_from_spreadsheet(lib_path_in: Path, spreadsheet_path:
                 print(f"Skipping row with empty 'Symbol Name' in sheet '{sheet_name}'.")
                 continue
 
-            try:
-                lib.delete_symbol(symbol_name)  # Move it out of the way
-            except KeyError:
-                pass  # It's okay if it doesn't exist
 
             properties = {col: str(row[col]) for col in df.columns if col != "Symbol Name" and not pd.isna(row[col])}
 
